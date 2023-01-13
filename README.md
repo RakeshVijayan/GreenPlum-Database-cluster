@@ -801,14 +801,13 @@ Reloading privilege tables..
  ... Success!
 
 
-
 By default, a MySQL installation has an anonymous user, allowing anyone
 to log into MySQL without having to have a user account created for
 them.  This is intended only for testing, and to make the installation
 go a bit smoother.  You should remove them before moving into a
 production environment.
 
-Remove anonymous users? [Y/n] y
+Remove anonymous users? [Y/n] yy
  ... Success!
 
 Normally, root should only be allowed to connect from 'localhost'.  This
