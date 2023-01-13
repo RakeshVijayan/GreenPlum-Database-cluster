@@ -1,0 +1,641 @@
+Green plumdb installation 
+
+http://www.zhongweicheng.com/?p=836
+http://www.zhongweicheng.com/?p=2232
+
+
+ 1) Firt unzip and install grenplum database fiel ./filename to /greenplumdb directroy  as root 
+
+
+ 2) Source the installion location 
+
+ 		source /greenplumdb/greenplum-db/greenplum_path.sh
+
+ 3) Create file contain all system name 
+
+
+ 		nano all_hosts
+
+ 		cat /greenplumdb/all_hosts 
+				hmaster
+				slv1
+				slv2
+				slv3
+				slv4
+				slv5
+
+
+4)  share the ssh key file to all machine with the gpssh-exkeys ( create a common passowrd for all root user in all system )
+
+ 	hmaster:~ # gpssh-exkeys -f /greenplumdb/all_hosts 
+		[STEP 1 of 5] create local ID and authorize on local host
+
+		[STEP 2 of 5] keyscan all hosts and update known_hosts file
+
+		[STEP 3 of 5] authorize current user on remote hosts
+		  ... send to slv1
+		  ***
+		  *** Enter password for slv1: 
+		  ... send to slv2
+		  ... send to slv3
+		  ... send to slv4
+		  ... send to slv5
+
+		[STEP 4 of 5] determine common authentication file content
+
+		[STEP 5 of 5] copy authentication files to all remote hosts
+		  ... finished key exchange with slv1
+		  ... finished key exchange with slv2
+		  ... finished key exchange with slv3
+		  ... finished key exchange with slv4
+		  ... finished key exchange with slv5
+
+		[INFO] completed successfully
+		hmaster:~ #
+
+
+5)		Setting the Greenplum recommended OS parameters
+
+		Set the following parameters in the /etc/sysctl.conf file and reboot: SUSE 
+
+		xfs_mount_options = rw,noatime,inode64,allocsize=16m
+		sysctl.kernel.shmmax = 500000000
+		sysctl.kernel.shmmni = 4096
+		sysctl.kernel.shmall = 4000000000
+		sysctl.kernel.sem = 250 512000 100 2048
+		sysctl.kernel.sysrq = 1
+		sysctl.kernel.core_uses_pid = 1
+		sysctl.kernel.msgmnb = 65536
+		sysctl.kernel.msgmax = 65536
+		sysctl.kernel.msgmni = 2048
+		sysctl.net.ipv4.tcp_syncookies = 1
+		sysctl.net.ipv4.ip_forward = 0
+		sysctl.net.ipv4.conf.default.accept_source_route = 0
+		sysctl.net.ipv4.tcp_tw_recycle = 1
+		sysctl.net.ipv4.tcp_max_syn_backlog = 4096
+		sysctl.net.ipv4.conf.all.arp_filter = 1
+		sysctl.net.ipv4.ip_local_port_range = 1025 65535
+		sysctl.net.core.netdev_max_backlog = 10000
+		sysctl.vm.overcommit_memory = 2
+
+		Note: For RHEL version 6.x platforms, the above parameters do not include the sysctl. prefix, as follows:
+
+		xfs_mount_options = rw,noatime,inode64,allocsize=16m
+		kernel.shmmax = 500000000
+		kernel.shmmni = 4096
+		kernel.shmall = 4000000000
+		kernel.sem = 250 512000 100 2048
+		kernel.sysrq = 1
+		kernel.core_uses_pid = 1
+		kernel.msgmnb = 65536
+		kernel.msgmax = 65536
+		kernel.msgmni = 2048
+		net.ipv4.tcp_syncookies = 1
+		net.ipv4.ip_forward = 0
+		net.ipv4.conf.default.accept_source_route = 0
+		net.ipv4.tcp_tw_recycle = 1
+		net.ipv4.tcp_max_syn_backlog = 4096
+		net.ipv4.conf.all.arp_filter = 1
+		net.ipv4.ip_local_port_range = 1025 65535
+		net.core.netdev_max_backlog = 10000
+		vm.overcommit_memory = 2
+
+		Set the following parameters in the /etc/security/limits.conf file:
+
+		soft nofile 65536
+		hard nofile 65536
+		soft nproc 131072
+		hard nproc 131072
+
+		Be sure to reboot after changing these kernel parameters.
+
+6) Install NTP Server 
+
+	zypper -n install ntp 		
+	nano /etc/ntp.conf
+		Add this line after #server and #fudge 
+		server 2.cn.pool.ntp.org
+		server 1.asia.pool.ntp.org
+		server 2.asia.pool.ntp.org
+
+	systemctl start ntpd 
+	systemctl enable ntpd
+	ntpq -p
+
+7)  echo deadline > /sys/block/sda/queue/scheduler			
+	blockdev --setra 65536 /dev/sda
+
+				https://gpdb.docs.pivotal.io/4350/prep_os-system-params.html
+
+8) 	Create Segment host file and add hosts the slv1,slv2,slv3,slv4,slv5
+	then create directroy for Segment and Mirror 
+
+			hmaster:/greenplumdb # gpssh -f seg_hosts 
+			Note: command history unsupported on this machine ...
+			=> mkdir -p /greenplumdb/gpdatam1 
+			[slv1]
+			[slv4]
+			[slv3]
+			[slv2]
+			=> mkdir -p /greenplumdb/gpdatam2
+			[slv1]
+			[slv4]
+			[slv3]
+			[slv2]
+			=> mkdir -p /greenpludb/gpdatap1
+			[slv1]
+			[slv4]
+			[slv3]
+			[slv2]
+			=> mkdir -p /greenpludb/gpdatap2
+
+
+9) 	Source the the greenplum script or add it in .bashrc of ROOT user for SEGMENT INSTALLATION
+	
+	gpseginstall -f all_hosts  -p gpadmin
+
+
+		20170221:16:14:22:002723 gpseginstall:hmaster:root-[INFO]:-Installation Info:
+		link_name greenplum-db
+		binary_path /greenplumdb/greenplum-db-4.3.10.0
+		binary_dir_location /greenplumdb
+		binary_dir_name greenplum-db-4.3.10.0
+		20170221:16:14:22:002723 gpseginstall:hmaster:root-[INFO]:-check cluster password access
+		20170221:16:14:25:002723 gpseginstall:hmaster:root-[INFO]:-de-duplicate hostnames
+		20170221:16:14:25:002723 gpseginstall:hmaster:root-[INFO]:-master hostname: hmaster
+		20170221:16:14:27:002723 gpseginstall:hmaster:root-[INFO]:-check for user gpadmin on cluster
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-add user gpadmin on master
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-add user gpadmin on cluster
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-chown -R gpadmin:gpadmin /greenplumdb/greenplum-db
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-chown -R gpadmin:gpadmin /greenplumdb/greenplum-db-4.3.10.0
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-rm -f /greenplumdb/greenplum-db-4.3.10.0.tar; rm -f /greenplumdb/greenplum-db-4.3.10.0.tar.gz
+		20170221:16:14:29:002723 gpseginstall:hmaster:root-[INFO]:-cd /greenplumdb; tar cf greenplum-db-4.3.10.0.tar greenplum-db-4.3.10.0
+		20170221:16:15:02:002723 gpseginstall:hmaster:root-[INFO]:-gzip /greenplumdb/greenplum-db-4.3.10.0.tar
+		20170221:16:15:22:002723 gpseginstall:hmaster:root-[INFO]:-remote command: mkdir -p /greenplumdb
+		20170221:16:15:23:002723 gpseginstall:hmaster:root-[INFO]:-remote command: rm -rf /greenplumdb/greenplum-db-4.3.10.0
+		20170221:16:15:25:002723 gpseginstall:hmaster:root-[INFO]:-scp software to remote location
+		20170221:16:15:34:002723 gpseginstall:hmaster:root-[INFO]:-remote command: gzip -f -d /greenplumdb/greenplum-db-4.3.10.0.tar.gz
+		20170221:16:15:40:002723 gpseginstall:hmaster:root-[INFO]:-md5 check on remote location
+		20170221:16:15:43:002723 gpseginstall:hmaster:root-[INFO]:-remote command: cd /greenplumdb; tar xf greenplum-db-4.3.10.0.tar
+		20170221:16:15:46:002723 gpseginstall:hmaster:root-[INFO]:-remote command: rm -f /greenplumdb/greenplum-db-4.3.10.0.tar
+		20170221:16:15:47:002723 gpseginstall:hmaster:root-[INFO]:-remote command: cd /greenplumdb; rm -f greenplum-db; ln -fs greenplum-db-4.3.10.0 greenplum-db
+		20170221:16:15:49:002723 gpseginstall:hmaster:root-[INFO]:-remote command: chown -R gpadmin:gpadmin /greenplumdb/greenplum-db
+		20170221:16:15:51:002723 gpseginstall:hmaster:root-[INFO]:-remote command: chown -R gpadmin:gpadmin /greenplumdb/greenplum-db-4.3.10.0
+		20170221:16:15:52:002723 gpseginstall:hmaster:root-[INFO]:-rm -f /greenplumdb/greenplum-db-4.3.10.0.tar.gz
+		20170221:16:15:52:002723 gpseginstall:hmaster:root-[INFO]:-Changing system passwords ...
+		20170221:16:15:55:002723 gpseginstall:hmaster:root-[INFO]:-exchange ssh keys for user root
+		20170221:16:15:59:002723 gpseginstall:hmaster:root-[INFO]:-exchange ssh keys for user gpadmin
+		20170221:16:16:06:002723 gpseginstall:hmaster:root-[INFO]:-/greenplumdb/greenplum-db/./sbin/gpfixuserlimts -f /etc/security/limits.conf -u gpadmin
+		20170221:16:16:06:002723 gpseginstall:hmaster:root-[INFO]:-remote command: . /greenplumdb/greenplum-db/./greenplum_path.sh; /greenplumdb/greenplum-db/./sbin/gpfixuserlimts -f /etc/security/limits.conf -u gpadmin
+		20170221:16:16:08:002723 gpseginstall:hmaster:root-[INFO]:-version string on master: gpssh version 4.3.10.0 build commit: f413ff3b006655f14b6b9aa217495ec94da5c96c
+		20170221:16:16:08:002723 gpseginstall:hmaster:root-[INFO]:-remote command: . /greenplumdb/greenplum-db/./greenplum_path.sh; /greenplumdb/greenplum-db/./bin/gpssh --version
+		20170221:16:16:09:002723 gpseginstall:hmaster:root-[INFO]:-remote command: . /greenplumdb/greenplum-db-4.3.10.0/greenplum_path.sh; /greenplumdb/greenplum-db-4.3.10.0/bin/gpssh --version
+		20170221:16:16:16:002723 gpseginstall:hmaster:root-[INFO]:-SUCCESS -- Requested commands completed
+		hmaster:/greenplumdb # cat ~/.bashrc 
+		source /greenplumdb/greenplum-db/greenplum_path.sh
+		MASTER_DATA_DIRECTORY=/greenplumdb/gpmaster
+		export MASTER_DATA_DIRECTORY
+		hmaster:/greenplumdb # 
+10) Make sure all of the /greenplum directory and file owned by (gpadmin)		
+
+			hmaster:/greenplumdb # gpssh -f all_hosts 
+			Note: command history unsupported on this machine ...
+			=> chown -R gpadmin:gpadmin /greenplumdb
+			[   slv4]
+			[   slv3]
+			[   slv2]
+			[   slv1]
+			[hmaster]
+			[   slv5]
+			=> exit
+
+11) 	Change user to gpadmin 
+
+			su gpadmin 
+
+12) 	copy the configuration file to current pwd and edit the setting 
+
+			cp /greenplumdb/docs/cli_help/gpconfigs/gpinitsystem_config .		
+
+			cat gpinitsystem_config 
+			ARRAY_NAME="Rakesh Greenplum DW"
+			SEG_PREFIX=gpseg
+			PORT_BASE=40000 
+			declare -a DATA_DIRECTORY=(/greenplumdb/gpdatap1 /greenplumdb/gpdatap2)
+			MASTER_HOSTNAME=hmaster
+			MASTER_DIRECTORY=/greenplumdb/gpmaster 
+			MASTER_PORT=5432 
+			TRUSTED_SHELL=ssh
+			CHECK_POINT_SEGMENT=8
+			ENCODING=UNICODE
+			MIRROR_PORT_BASE=50000
+			REPLICATION_PORT_BASE=41000
+			MIRROR_REPLICATION_PORT_BASE=51000
+			declare -a MIRROR_DATA_DIRECTORY=(/greenplumdb/gpdatam1 /greenplumdb/gpdatam2)
+			MACHINE_LIST_FILE=/greenplumdb/seg_hosts		
+
+13) 	Installation of greenplumdb	as gpadmin user 
+
+			gpinitsystem -c /greenplumdb/pinitsystem_config -s slv5  (-s for Standby Master )
+
+			20170221:16:35:40:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checking configuration parameters, please wait...
+			20170221:16:35:40:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Reading Greenplum configuration file /greenplumdb/gpinitsystem_config
+			20170221:16:35:40:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Locale has not been set in /greenplumdb/gpinitsystem_config, will set to default value
+			20170221:16:35:40:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Locale set to en_US.utf8
+			20170221:16:35:41:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-No DATABASE_NAME set, will exit following template1 updates
+			20170221:16:35:41:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-MASTER_MAX_CONNECT not set, will set to default value 250
+			20170221:16:35:41:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checking configuration parameters, Completed
+			20170221:16:35:41:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Commencing multi-home checks, please wait...
+			....
+			20170221:16:35:42:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Configuring build for standard array
+			20170221:16:35:42:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Commencing multi-home checks, Completed
+			20170221:16:35:42:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Building primary segment instance array, please wait...
+			........
+			20170221:16:35:45:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Building group mirror array type , please wait...
+			........
+			20170221:16:35:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checking Master host
+			20170221:16:35:49:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checking new segment hosts, please wait...
+			................
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checking new segment hosts, Completed
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Greenplum Database Creation Parameters
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:---------------------------------------
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master Configuration
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:---------------------------------------
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master instance name       = EMC Greenplum DW
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master hostname            = hmaster
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master port                = 5432
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master instance dir        = /greenplumdb/gpmaster/gpseg-1
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master LOCALE              = en_US.utf8
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Greenplum segment prefix   = gpseg
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master Database            = 
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master connections         = 250
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master buffers             = 128000kB
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Segment connections        = 750
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Segment buffers            = 128000kB
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Checkpoint segments        = 8
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Encoding                   = UNICODE
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Postgres param file        = Off
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Initdb to be used          = /greenplumdb/greenplum-db/./bin/initdb
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-GP_LIBRARY_PATH is         = /greenplumdb/greenplum-db/./lib
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Ulimit check               = Passed
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Array host connect type    = Single hostname per node
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master IP address [1]      = ::1
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master IP address [2]      = 11.0.0.20
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Master IP address [3]      = fe80::e611:5bff:fe0f:55f2
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Standby Master             = slv5
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Primary segment #          = 2
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Standby IP address         = ::1
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Standby IP address         = 11.0.0.25
+			20170221:16:36:01:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Standby IP address         = fe80::5ef3:fcff:fe29:2713
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total Database segments    = 8
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Trusted shell              = ssh
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Number segment hosts       = 4
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Mirror port base           = 50000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Replicaton port base       = 41000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Mirror replicaton port base= 51000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Mirror segment #           = 2
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Mirroring config           = ON
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Mirroring type             = Group
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:----------------------------------------
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Greenplum Primary Segment Configuration
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:----------------------------------------
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv1 	/greenplumdb/gpdatap1/gpseg0 	40000 	2 	0 	41000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv1 	/greenplumdb/gpdatap2/gpseg1 	40001 	3 	1 	41001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv2 	/greenplumdb/gpdatap1/gpseg2 	40000 	4 	2 	41000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv2 	/greenplumdb/gpdatap2/gpseg3 	40001 	5 	3 	41001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv3 	/greenplumdb/gpdatap1/gpseg4 	40000 	6 	4 	41000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv3 	/greenplumdb/gpdatap2/gpseg5 	40001 	7 	5 	41001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv4 	/greenplumdb/gpdatap1/gpseg6 	40000 	8 	6 	41000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv4 	/greenplumdb/gpdatap2/gpseg7 	40001 	9 	7 	41001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:---------------------------------------
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Greenplum Mirror Segment Configuration
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:---------------------------------------
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv2 	/greenplumdb/gpdatam1/gpseg0 	50000 	10 	0 	51000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv2 	/greenplumdb/gpdatam1/gpseg1 	50001 	11 	1 	51001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv3 	/greenplumdb/gpdatam1/gpseg2 	50000 	12 	2 	51000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv3 	/greenplumdb/gpdatam1/gpseg3 	50001 	13 	3 	51001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv4 	/greenplumdb/gpdatam1/gpseg4 	50000 	14 	4 	51000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv4 	/greenplumdb/gpdatam1/gpseg5 	50001 	15 	5 	51001
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv1 	/greenplumdb/gpdatam1/gpseg6 	50000 	16 	6 	51000
+			20170221:16:36:02:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-slv1 	/greenplumdb/gpdatam1/gpseg7 	50001 	17 	7 	51001
+			Continue with Greenplum creation Yy/Nn>
+
+
+			20170221:16:37:39:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Building the Master instance database, please wait...
+			20170221:16:37:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Starting the Master in admin mode
+			20170221:16:37:59:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Commencing parallel build of primary segment instances
+			20170221:16:37:59:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Spawning parallel processes    batch [1], please wait...
+			........
+			20170221:16:37:59:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Waiting for parallel processes batch [1], please wait...
+			...............................................................................................................................
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Parallel process exit status
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as completed           = 8
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as killed              = 0
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as failed              = 0
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:07:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Commencing parallel build of mirror segment instances
+			20170221:16:40:08:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Spawning parallel processes    batch [1], please wait...
+			........
+			20170221:16:40:08:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Waiting for parallel processes batch [1], please wait...
+			.......
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Parallel process exit status
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as completed           = 8
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as killed              = 0
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Total processes marked as failed              = 0
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:------------------------------------------------
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Deleting distributed backout files
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Removing back out file
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-No errors generated from parallel processes
+			20170221:16:40:15:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Starting initialization of standby master slv5
+			20170221:16:40:15:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Validating environment and parameters for standby initialization...
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Checking for filespace directory /greenplumdb/gpmaster/gpseg-1 on slv5
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:------------------------------------------------------
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum standby master initialization parameters
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:------------------------------------------------------
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum master hostname               = hmaster
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum master data directory         = /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum master port                   = 5432
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum standby master hostname       = slv5
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum standby master port           = 5432
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum standby master data directory = /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Greenplum update system catalog         = On
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:------------------------------------------------------
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:- Filespace locations
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:------------------------------------------------------
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-pg_system -> /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Syncing Greenplum Database extensions to standby
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-The packages on slv5 are consistent.
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Adding standby master to catalog...
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Database catalog updated successfully.
+			20170221:16:40:16:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Updating pg_hba.conf file...
+			20170221:16:40:22:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-pg_hba.conf files updated successfully.
+			20170221:16:40:24:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Updating filespace flat files...
+			20170221:16:40:24:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Filespace flat file updated successfully.
+			20170221:16:40:24:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Starting standby master
+			20170221:16:40:24:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Checking if standby master is running on host: slv5  in directory: /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:25:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Cleaning up pg_hba.conf backup files...
+			20170221:16:40:30:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Backup files of pg_hba.conf cleaned up successfully.
+			20170221:16:40:30:020793 gpinitstandby:hmaster:gpadmin-[INFO]:-Successfully created standby master on slv5
+			20170221:16:40:30:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Successfully completed standby master initialization
+			20170221:16:40:31:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Restarting the Greenplum instance in production mode
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Starting gpstop with args: -a -i -m -d /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Gathering information and validating the environment...
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Obtaining Greenplum Master catalog information
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Obtaining Segment details from master...
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Greenplum Version: 'postgres (Greenplum Database) 4.3.10.0 build commit: f413ff3b006655f14b6b9aa217495ec94da5c96c'
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-There are 0 connections to the database
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Commencing Master instance shutdown with mode='immediate'
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Master host=hmaster
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Commencing Master instance shutdown with mode=immediate
+			20170221:16:40:31:021181 gpstop:hmaster:gpadmin-[INFO]:-Master segment instance directory=/greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:32:021181 gpstop:hmaster:gpadmin-[INFO]:-Attempting forceful termination of any leftover master process
+			20170221:16:40:32:021181 gpstop:hmaster:gpadmin-[INFO]:-Terminating processes for segment /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:32:021268 gpstart:hmaster:gpadmin-[INFO]:-Starting gpstart with args: -a -d /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:32:021268 gpstart:hmaster:gpadmin-[INFO]:-Gathering information and validating the environment...
+			20170221:16:40:32:021268 gpstart:hmaster:gpadmin-[INFO]:-Greenplum Binary Version: 'postgres (Greenplum Database) 4.3.10.0 build commit: f413ff3b006655f14b6b9aa217495ec94da5c96c'
+			20170221:16:40:32:021268 gpstart:hmaster:gpadmin-[INFO]:-Greenplum Catalog Version: '201310150'
+			20170221:16:40:32:021268 gpstart:hmaster:gpadmin-[INFO]:-Starting Master instance in admin mode
+			20170221:16:40:33:021268 gpstart:hmaster:gpadmin-[INFO]:-Obtaining Greenplum Master catalog information
+			20170221:16:40:33:021268 gpstart:hmaster:gpadmin-[INFO]:-Obtaining Segment details from master...
+			20170221:16:40:33:021268 gpstart:hmaster:gpadmin-[INFO]:-Setting new master era
+			20170221:16:40:33:021268 gpstart:hmaster:gpadmin-[INFO]:-Master Started...
+			20170221:16:40:34:021268 gpstart:hmaster:gpadmin-[INFO]:-Shutting down master
+			20170221:16:40:35:021268 gpstart:hmaster:gpadmin-[INFO]:-Commencing parallel primary and mirror segment instance startup, please wait...
+			...... 
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-Process results...
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-----------------------------------------------------
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-   Successful segment starts                                            = 16
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-   Failed segment starts                                                = 0
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-   Skipped segment starts (segments are marked down in configuration)   = 0
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-----------------------------------------------------
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-Successfully started 16 of 16 segment instances 
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-----------------------------------------------------
+			20170221:16:40:41:021268 gpstart:hmaster:gpadmin-[INFO]:-Starting Master instance hmaster directory /greenplumdb/gpmaster/gpseg-1 
+			20170221:16:40:42:021268 gpstart:hmaster:gpadmin-[INFO]:-Command pg_ctl reports Master hmaster instance active
+			20170221:16:40:42:021268 gpstart:hmaster:gpadmin-[INFO]:-Starting standby master
+			20170221:16:40:42:021268 gpstart:hmaster:gpadmin-[INFO]:-Checking if standby master is running on host: slv5  in directory: /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:44:021268 gpstart:hmaster:gpadmin-[INFO]:-Database successfully started
+			20170221:16:40:44:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Completed restart of Greenplum instance in production mode
+			20170221:16:40:44:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Loading gp_toolkit...
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Scanning utility log file for any warning messages
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[WARN]:-*******************************************************
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[WARN]:-Scan of log file indicates that some warnings or errors
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[WARN]:-were generated during the array creation
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Please review contents of log file
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-/home/gpadmin/gpAdminLogs/gpinitsystem_20170221.log
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-To determine level of criticality
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-These messages could be from a previous run of the utility
+			20170221:16:40:47:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-that was called today!
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[WARN]:-*******************************************************
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Greenplum Database instance successfully created
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-------------------------------------------------------
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-To complete the environment configuration, please 
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-update gpadmin .bashrc file with the following
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-1. Ensure that the greenplum_path.sh file is sourced
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-2. Add "export MASTER_DATA_DIRECTORY=/greenplumdb/gpmaster/gpseg-1"
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-   to access the Greenplum scripts for this instance:
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-   or, use -d /greenplumdb/gpmaster/gpseg-1 option for the Greenplum scripts
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-   Example gpstate -d /greenplumdb/gpmaster/gpseg-1
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Script log file = /home/gpadmin/gpAdminLogs/gpinitsystem_20170221.log
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-To remove instance, run gpdeletesystem utility
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Standby Master slv5 has been configured
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-To activate the Standby Master Segment in the event of Master
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-failure review options for gpactivatestandby
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-------------------------------------------------------
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-The Master /greenplumdb/gpmaster/gpseg-1/pg_hba.conf post gpinitsystem
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-has been configured to allow all hosts within this new
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-array to intercommunicate. Any hosts external to this
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-new array must be explicitly added to this file
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-Refer to the Greenplum Admin support guide which is
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-located in the /greenplumdb/greenplum-db/./docs directory
+			20170221:16:40:48:011754 gpinitsystem:hmaster:gpadmin-[INFO]:-------------------------------------------------------
+			gpadmin@hmaster:/greenplumdb>	
+
+			gpinitstandby -n ( Resysnc the gpmaster)
+
+14) 			CREATING USER IN GREENPLUM 
+
+			gpadmin@hmaster:~> createuser -P -s -e stratagile
+			Enter password for new role: 
+			Enter it again: 
+			CREATE ROLE stratagile PASSWORD 'md5995ba5e45a5c75a6d1716f55c6f6280c' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;
+			gpadmin@hmaster:~>			
+
+15) 	GRANT DATABASE TO CLIENT OR NETWORK 
+
+			https://www.postgresql.org/docs/9.3/static/auth-pg-hba-conf.html
+			Allow user to connect to database in pg_hba.conf ...
+
+		   	a) First Create user ( I create User as Admin )
+		   	     createuser -P -s -e Starhub   
+		   	            ( -P --pwprompt  -s --superuser -e --echo (Echo the commands that create user generates and sends to the server.))
+
+		   	 	Enter password : twise
+		   	b) Edit pg_hba.conf under /greenplumdb/master/gpsne-1/pg_hba.conf
+
+		   			add the following to allow user Starhub to access all featurs AND need to specify the host to allow access 
+
+
+		   		# local      DATABASE  USER  METHOD  [OPTIONS]
+		   		==============================================
+
+		   		local    all         Starhub         password					// Specify all database to Starhub 
+
+		   		host      all           all             0.0.0.0/0       md5   // here I allow all hosts to access the data base 
+
+		   		SELECT pg_reload_conf();
+
+16) 	POSTGIS INSTALLATION (For Find the Geographic Location)
+
+			a) Before install postgis we need to ensure the postigis package is support by our greenplum version 
+
+		  		Current version of greenplum is greenplum-db-4.3.10 and package is Maven Directory 
+
+		  		for install move to directory postgis downloaded and Use gppkg command 
+
+		  		gppkg -i postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg
+
+		  	b) Enabling PostGIS
+
+		  		After installing the PostGIS extension package, you enable PostGIS support for each database that requires its use. To enable the support, run enabler SQL scripts that are supplied with the PostGIS package, in your target database
+
+		  			For PostGIS 2.0.3, you run two SQL scripts postgis.sql and spatial_ref_sys.sql in your target database.
+
+					For example:
+					gpadmin@hmaster:~> psql -d starhub -f /greenplumdb/greenplum-db/share/postgresql/contrib/postgis-2.0/postgis.sql
+					gpadmin@hmaster:~> psql -d starhub -f /greenplumdb/greenplum-db/share/postgresql/contrib/postgis-2.0/spatial_ref_sys.sql
+
+				 
+
+						[Note: spatial_ref_sys.sql populates the spatial_ref_sys table with EPSG coordinate system definition identifiers. If you have overridden standard entries and want to use those overrides, do not load the spatial_ref_sys.sql file when creating the new database.]
+
+						Url : http://gpdb.docs.pivotal.io/4340/ref_guide/postGIS.html# 
+				Parameters allowd ( --install, --remove, -update, --query, --clean, --migrate)	For install postgis in StandByMaster
+				only possible after standby master is up 			
+
+			gpadmin@hmaster:~> gppkg --install postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg 
+			20170223:13:49:28:010499 gppkg:hmaster:gpadmin-[INFO]:-Starting gppkg with args: --install postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg
+			20170223:13:49:29:010499 gppkg:hmaster:gpadmin-[INFO]:-Installing package postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg
+			20170223:13:49:29:010499 gppkg:hmaster:gpadmin-[INFO]:-Validating rpm installation cmdStr='rpm --test -i /greenplumdb/greenplum-db-4.3.10.0/.tmp/postgis-2.0.3-2.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/geos-3.3.8-1.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/proj-4.8.0-1.x86_64.rpm --dbpath /greenplumdb/greenplum-db-4.3.10.0/share/packages/database --prefix /greenplumdb/greenplum-db-4.3.10.0'
+			20170223:13:49:38:010499 gppkg:hmaster:gpadmin-[INFO]:-Installing postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg locally
+			20170223:13:49:39:010499 gppkg:hmaster:gpadmin-[INFO]:-Validating rpm installation cmdStr='rpm --test -i /greenplumdb/greenplum-db-4.3.10.0/.tmp/postgis-2.0.3-2.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/geos-3.3.8-1.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/proj-4.8.0-1.x86_64.rpm --dbpath /greenplumdb/greenplum-db-4.3.10.0/share/packages/database --prefix /greenplumdb/greenplum-db-4.3.10.0'
+			20170223:13:49:39:010499 gppkg:hmaster:gpadmin-[INFO]:-Installing rpms cmdStr='rpm -i /greenplumdb/greenplum-db-4.3.10.0/.tmp/postgis-2.0.3-2.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/geos-3.3.8-1.x86_64.rpm /greenplumdb/greenplum-db-4.3.10.0/.tmp/proj-4.8.0-1.x86_64.rpm --dbpath /greenplumdb/greenplum-db-4.3.10.0/share/packages/database --prefix=/greenplumdb/greenplum-db-4.3.10.0'
+			20170223:13:49:41:010499 gppkg:hmaster:gpadmin-[INFO]:-Completed local installation of postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg.
+			20170223:13:49:41:010499 gppkg:hmaster:gpadmin-[INFO]:-Please run psql -d mydatabase -f $GPHOME/share/postgresql/contrib/postgis-2.0/postgis.sql to enable the package.
+			20170223:13:49:41:010499 gppkg:hmaster:gpadmin-[INFO]:-postgis-ossv2.0.3_pv2.0.1_gpdb4.3orca-suse10-x86_64.gppkg successfully installed.
+			gpadmin@hmaster:~> 
+
+17) 	Greenplum and Hadoop HDFS integration
+			https://dwarehouse.wordpress.com/2012/10/10/greenplum-and-hadoop-hdfs-integration/
+			(For create external table in greenplum with hadoop we have to add the following in postgress.conf)			
+
+			nano /greenplumdb/gpmaster/gpseg-1/postgress.conf  // add the following at bottom
+
+				gp_external_enable_exec=on
+				gp_hadoop_target_version = hadoop2
+				gp_hadoop_home = '/greenplumdb/hadoop'
+
+			Then stop database and start it 
+			
+				gpstop -af / gpstart
+
+18) 					
+
+
+?) 		Checking StandBy Master RUNNING 
+				gpadmin@hmaster:~> gpinitstandby -n
+				20170223:14:00:24:010819 gpinitstandby:hmaster:gpadmin-[INFO]:-Standy master is already up and running.
+				gpadmin@hmaster:~>			
+
+14)	Activating STANDBY MASTER ONLY IF THE ACTIVE MASTER DOWN 
+
+		On the STANDBY  machine  export greenplum masterdirectory and specify the port 
+
+		source /greenplumdb/greenplum-db/greenplum_path.sh
+		export MASTER_DATA_DIRECTORY=/greenplumdb/gpmaster/gpseg-1
+		export PGPORT=5432	
+
+		Then run the following command on STANDBY MASTER with (-f )
+
+		gpadmin@slv5:~> gpactivatestandby -f -d $MASTER_DATA_DIRECTORY
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:------------------------------------------------------
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Standby data directory    = /greenplumdb/gpmaster/gpseg-1
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Standby port              = 5432
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Standby running           = no
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Force standby activation  = yes
+		20170222:16:02:50:004439 gpactivatestandby:slv5:gpadmin-[INFO]:------------------------------------------------------
+		Do you want to continue with standby master activation? Yy|Nn (default=N):
+		> y
+		20170222:16:03:09:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Starting standby master database in utility mode...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Updating transaction files filespace flat files...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Updating temporary files filespace flat files...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Reading current configuration...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[DEBUG]:-Connecting to dbname='template1'
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Writing the gp_dbid file - /greenplumdb/gpmaster/gpseg-1/gp_dbid...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-But found an already existing file.
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Hence removed that existing file.
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Creating a new file...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Wrote dbid: 1 to the file.
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Now marking it as read only...
+		20170222:16:03:11:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Verifying the file...
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:------------------------------------------------------
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-The activation of the standby master has completed successfully.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-slv5 is now the new primary master.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-You will need to update your user access mechanism to reflect
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-the change of master hostname.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Do not re-start the failed master while the fail-over master is
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-operational, this could result in database corruption!
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-MASTER_DATA_DIRECTORY is now /greenplumdb/gpmaster/gpseg-1 if
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-this has changed as a result of the standby master activation, remember
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-to change this in any startup scripts etc, that may be configured
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-to set this value.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-MASTER_PORT is now 5432, if this has changed, you
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-may need to make additional configuration changes to allow access
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-to the Greenplum instance.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Refer to the Administrator Guide for instructions on how to re-activate
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-the master to its previous state once it becomes available.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-Query planner statistics must be updated on all databases
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-following standby master activation.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:-When convenient, run ANALYZE against all user databases.
+		20170222:16:03:45:004439 gpactivatestandby:slv5:gpadmin-[INFO]:------------------------------------------------------
+		gpadmin@slv5:~>
+		
+
+
+http://www.simpledata.co.il/2/post/2014/01/master-standby-and-segments.html
+
+
+
+			HADOOP INSTALLATION 
+
+
+1) Install JAVA and location to source 
+
+gpadmin@hmaster:~> gpssh -f /greenplumdb/all_hosts 
+Note: command history unsupported on this machine ...
+=> readlink -f /usr/bin/javac
+[   slv5] /usr/java/jdk1.8.0_101/bin/javac
+[   slv2] /usr/java/jdk1.8.0_101/bin/javac
+[   slv1] /usr/java/jdk1.8.0_101/bin/javac
+[   slv4] /usr/java/jdk1.8.0_101/bin/javac
+[   slv3] /usr/java/jdk1.8.0_101/bin/javac
+[hmaster] /usr/java/jdk1.8.0_101/bin/javac
+=>
+ 			
+2) $ vi etc/hadoop/core-site.xml
+
+		 <configuration>
+		<name>fs.defaultFS</name>
+		<value>hdfs://hmaster:8020/</value>
+		</configuration>
+
+3)
+
+Now followed this link Must read and prepare doc 
+
+https://dwbi.org/etl/bigdata/183-setup-hadoop-cluster
